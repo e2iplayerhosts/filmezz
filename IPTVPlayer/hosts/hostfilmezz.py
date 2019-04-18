@@ -1,16 +1,15 @@
 # -*- coding: utf-8 -*-
-#
 ###################################################
-# filmezz.eu - v1.3  modified by Alec - 2019.03.25
-###################################################
-HOST_VERSION = "1.3"
+HOST_VERSION = "1.4"
 ###################################################
 # LOCAL import
 ###################################################
 from Plugins.Extensions.IPTVPlayer.components.iptvplayerinit import TranslateTXT as _, SetIPTVPlayerLastHostError
 from Plugins.Extensions.IPTVPlayer.components.ihost import CHostBase, CBaseHostClass
-from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc, byteify, rm, GetTmpDir, MergeDicts
+from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc, rm, GetTmpDir
 from Plugins.Extensions.IPTVPlayer.tools.iptvtypes import strwithmeta
+from Plugins.Extensions.IPTVPlayer.libs.e2ijson import dumps as json_dumps
+from Plugins.Extensions.IPTVPlayer.libs import ph
 ###################################################
 
 ###################################################
@@ -20,8 +19,6 @@ import urlparse
 import re
 import urllib
 from copy import deepcopy
-try:    import json
-except Exception: import simplejson as json
 from Components.config import config, ConfigText, getConfigListEntry
 ###################################################
 
@@ -47,7 +44,7 @@ def GetConfigList():
 ###################################################
 
 def gettytul():
-    return 'http://filmezz.eu/'
+    return 'https://filmezz.eu/'
 
 class FilmezzEU(CBaseHostClass):
  
@@ -58,7 +55,7 @@ class FilmezzEU(CBaseHostClass):
         self.HEADER = {'User-Agent': self.USER_AGENT, 'DNT':'1', 'Accept': 'text/html'}
         self.AJAX_HEADER = dict(self.HEADER)
         self.AJAX_HEADER.update( {'X-Requested-With': 'XMLHttpRequest'} )
-        self.MAIN_URL = 'http://filmezz.eu/'
+        self.MAIN_URL = 'https://filmezz.eu/'
         self.cacheLinks    = {}
         self.cacheFilters  = {}
         self.cacheFiltersKeys = []
@@ -77,25 +74,16 @@ class FilmezzEU(CBaseHostClass):
                              {'category':'search',            'title': _('Search'), 'search_item':True,},
                              {'category':'search_history',    'title': _('Search history'),            } 
                             ]
-                            
+
     def getFullIconUrl(self, url):
-        url = url.replace('&amp;', '&')
-        return CBaseHostClass.getFullIconUrl(self, url)
-        
+        return CBaseHostClass.getFullIconUrl(self, url.replace('&amp;', '&'))
+
     def getPage(self, baseUrl, addParams = {}, post_data = None):
-        if addParams == {}:
-            addParams = dict(self.defaultParams)
-        
-        def _getFullUrl(url):
-            if self.cm.isValidUrl(url):
-                return url
-            else:
-                return urlparse.urljoin(baseUrl, url)
-            
-        addParams['cloudflare_params'] = {'domain':self.up.getDomain(baseUrl), 'cookie_file':self.COOKIE_FILE, 'User-Agent':self.USER_AGENT, 'full_url_handle':_getFullUrl}
+        if addParams == {}: addParams = dict(self.defaultParams)
+        addParams['cloudflare_params'] = {'cookie_file':self.COOKIE_FILE, 'User-Agent':self.USER_AGENT}
         sts, data = self.cm.getPageCFProtection(baseUrl, addParams, post_data)
         return sts, data
-    
+
     def fillCacheFilters(self, cItem):
         printDBG("FilmezzEU.listCategories")
         self.cacheFilters = {}
@@ -238,15 +226,15 @@ class FilmezzEU(CBaseHostClass):
             serverName = ' | '.join(serverName)
             #if 'letöltés' in serverName: continue
             
-            t = self.cm.ph.getDataBeetwenReMarkers(tmp, re.compile('<a[^>]+?class="url-btn play"'), re.compile('>'))[1]
-            url = self.cm.ph.getSearchGroups(t, '''href=['"]([^'^"]+?)['"]''')[0]
+            url = self.getFullUrl(urllib.unquote(self.cm.ph.getSearchGroups(tmp, '''(link_to\.php[^'^"]+?)['"]''')[0]))
+            if not url:
+                url = ph.find(tmp, ('<a ', '>', 'url-btn play'), '</a>')[1]
+                url = self.getFullUrl(ph.search(url, ph.A)[1])
             if url == '': continue
 
-            if 'adf.ly' in url:
-                adfly = re.findall(r'http://adf.ly/\d+/', url)[0]
-            
-                if url.startswith(adfly):
-                    url = urllib.unquote(url[len(adfly):])
+            if url.startswith('http://adf.ly/'):
+                url = urllib.unquote(url.rpartition('/')[2])
+                if url == '': continue
 
             if title not in titlesTab:
                 titlesTab.append(title)
@@ -371,46 +359,35 @@ class FilmezzEU(CBaseHostClass):
                         else:
                             continue
                 
-                tmp = re.compile('''<iframe[^>]+?src=['"]([^"^']+?)['"]''', re.IGNORECASE).findall(data)
-                for url in tmp:
+                tmp = ph.IFRAME.findall(data)
+                for urlItem in tmp:
+                    url = self.cm.getFullUrl(urlItem[1])
                     if 1 == self.up.checkHostSupport(url):
                         videoUrl = url
                         break
             break
-            
+
+        if not self.up.checkHostSupport(videoUrl):
+            sts, data = self.getPage(videoUrl)
+            if not sts: return []
+            tmp = ph.IFRAME.findall(data)
+            tmp.extend(ph.A.findall(data))
+            for item in tmp:
+                url = self.cm.getFullUrl(item[1])
+                if 1 == self.up.checkHostSupport(url):
+                    videoUrl = url
+                    break
+
         if self.up.checkHostSupport(videoUrl):
-            urlTab = self.up.getVideoLinkExt(videoUrl)
-        
+            return self.up.getVideoLinkExt(videoUrl)
+
         return urlTab
-    
+
     def getFavouriteData(self, cItem):
         printDBG('FilmezzEU.getFavouriteData')
         params = {'type':cItem['type'], 'category':cItem.get('category', ''), 'title':cItem['title'], 'url':cItem['url'], 'desc':cItem['desc'], 'icon':cItem['icon']}
-        return json.dumps(params) 
-        
-    def getLinksForFavourite(self, fav_data):
-        printDBG('FilmezzEU.getLinksForFavourite')
-        if self.MAIN_URL == None:
-            self.selectDomain()
-        links = []
-        try:
-            cItem = byteify(json.loads(fav_data))
-            links = self.getLinksForVideo(cItem)
-        except Exception: printExc()
-        return links
-        
-    def setInitListFromFavouriteItem(self, fav_data):
-        printDBG('FilmezzEU.setInitListFromFavouriteItem')
-        if self.MAIN_URL == None:
-            self.selectDomain()
-        try:
-            params = byteify(json.loads(fav_data))
-        except Exception: 
-            params = {}
-            printExc()
-        self.addDir(params)
-        return True
-        
+        return json_dumps(params) 
+
     def getArticleContent(self, cItem):
         printDBG("FilmezzEU.getArticleContent [%s]" % cItem)
         retTab = []
@@ -500,7 +477,7 @@ class FilmezzEU(CBaseHostClass):
         category = self.currItem.get("category", '')
         mode     = self.currItem.get("mode", '')
         
-        printDBG( "handleService: |||||||||||||||||||||||||||||||||||| name[%s], category[%s] " % (name, category) )
+        printDBG( "handleService: || name[%s], category[%s] " % (name, category) )
         self.currList = []
         
     #MAIN MENU
