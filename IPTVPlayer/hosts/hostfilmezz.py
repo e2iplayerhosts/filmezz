@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 ###################################################
-HOST_VERSION = "1.5"
+# 2019-06-21 by Alec - modified Filmezz
+###################################################
+HOST_VERSION = "1.6"
 ###################################################
 # LOCAL import
 ###################################################
@@ -248,14 +250,11 @@ class FilmezzEU(CBaseHostClass):
             printExc()
             
     def exploreItem(self, cItem):
-        printDBG("FilmezzEU.exploreItem")
-        
         sts, data = self.getPage(cItem['url'])
         if not sts: return
-        
+        if len(data) == 0: return
         desc = self.cleanHtmlStr(self.cm.ph.getDataBeetwenMarkers(data, '<div class="text"', '</div>')[1])
         desc = re.sub(r'^(.{1000}).*$', '\g<1>...', desc)
-        
         # trailer 
         tmp = self.cm.ph.getDataBeetwenReMarkers(data, re.compile('<a[^>]+?class="venobox"'), re.compile('>'))[1]
         url = self.cm.ph.getSearchGroups(tmp, '''href=['"]([^'^"]+?)['"]''')[0]
@@ -264,11 +263,14 @@ class FilmezzEU(CBaseHostClass):
             params = dict(cItem)
             params.update({'good_for_fav': False, 'title':title, 'prev_title':cItem['title'], 'url':url, 'prev_url':cItem['url'], 'prev_desc':cItem.get('desc', ''), 'desc':desc})
             self.addVideo(params)
-        
         reDescObj = re.compile('title="([^"]+?)"')
         titlesTab = []
         self.cacheLinks  = {}
-        data = self.cm.ph.getDataBeetwenMarkers(data, 'url-list', '</section>')[1]
+        tmp_url = self.cm.ph.getDataBeetwenMarkers(data, "window.open('", "',", False)[1]
+        sts, data = self.getPage(tmp_url)
+        if not sts: return
+        if len(data) == 0: return
+        data = self.cm.ph.getDataBeetwenMarkers(data, 'url-list', '</body>')[1]
         data = data.split('<div class="col-sm-4 col-xs-12 host">')
         if len(data): del data[0]
         for tmp in data:
