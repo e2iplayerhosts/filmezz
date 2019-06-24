@@ -1,14 +1,14 @@
 # -*- coding: utf-8 -*-
 ###################################################
-# 2019-06-21 by Alec - modified Filmezz
+# 2019-06-24 by Alec - modified Filmezz
 ###################################################
-HOST_VERSION = "1.6"
+HOST_VERSION = "1.7"
 ###################################################
 # LOCAL import
 ###################################################
 from Plugins.Extensions.IPTVPlayer.components.iptvplayerinit import TranslateTXT as _, SetIPTVPlayerLastHostError
 from Plugins.Extensions.IPTVPlayer.components.ihost import CHostBase, CBaseHostClass
-from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc, rm, GetTmpDir, GetIPTVPlayerVerstion
+from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc, rm, GetTmpDir, GetIPTVPlayerVerstion, MergeDicts
 from Plugins.Extensions.IPTVPlayer.tools.iptvtypes import strwithmeta
 from Plugins.Extensions.IPTVPlayer.libs.e2ijson import dumps as json_dumps
 from Plugins.Extensions.IPTVPlayer.libs import ph
@@ -114,29 +114,38 @@ class FilmezzEU(CBaseHostClass):
             desc_top_series = self.getdvdsz(tab_top_series, 'Legjobb sorozatok megjelenítése...')
             tab_latest_add = 'filmezz_utoljara_hozzaadva'
             desc_latest_add = self.getdvdsz(tab_latest_add, 'Legutóbb feltöltött felvételek megjelenítése...')
+            tab_ajanlott = 'filmezz_ajanlott'
+            desc_ajanlott = self.getdvdsz(tab_ajanlott, 'Ajánlott, nézett tartalmak megjelenítése...')
+            tab_keresett = 'filmezz_keresett_tartalom'
+            desc_keresett = self.getdvdsz(tab_keresett, 'Keresett tartalmak megjelenítése...')
             tab_search = 'filmezz_kereses'
             desc_search = self.getdvdsz(tab_search, 'Keresés...')
             tab_search_hist = 'filmezz_kereses_elozmeny'
             desc_search_hist = self.getdvdsz(tab_search_hist, 'Keresés az előzmények között...')
-            MAIN_CAT_TAB = [{'category':'list_filters', 'title': _('Home'), 'url':self.getFullUrl('kereses.php'), 'tab_id':tab_home, 'desc':desc_home   },
-                            {'category':'list_items', 'title': _('Movies'), 'url':self.getFullUrl('kereses.php?q=0&l=0&e=0&c=0&t=1&h=0&o=feltoltve'), 'tab_id':tab_movies, 'desc':desc_movies  },
-                            {'category':'list_items', 'title': _('Series'), 'url':self.getFullUrl('kereses.php?q=0&l=0&e=0&c=0&t=2&h=0&o=feltoltve'), 'tab_id':tab_series, 'desc':desc_series  },
-                            {'category':'list_items', 'title': _('Top movies'), 'url':self.getFullUrl('kereses.php?q=0&l=0&e=0&c=0&t=1&h=0&o=nezettseg'), 'tab_id':tab_top_movies, 'desc':desc_top_movies  },
-                            {'category':'list_items', 'title': _('Top series'), 'url':self.getFullUrl('kereses.php?q=0&l=0&e=0&c=0&t=2&h=0&o=nezettseg'), 'tab_id':tab_top_series, 'desc':desc_top_series  },
-                            {'category':'list_items', 'title': _('Latest added'), 'url':self.getFullUrl('kereses.php?q=0&l=0&e=0&c=0&t=0&h=0&o=feltoltve'), 'tab_id':tab_latest_add, 'desc':desc_latest_add  },
-                            {'category':'search', 'title': _('Search'), 'search_item':True, 'tab_id':tab_search, 'desc':desc_search },
-                            {'category':'search_history', 'title': _('Search history'), 'tab_id':tab_search_hist, 'desc':desc_search_hist } 
+            MAIN_CAT_TAB = [{'category':'list_filters', 'title': _('Home'), 'url':self.getFullUrl('kereses.php'), 'tps':'0', 'tab_id':tab_home, 'desc':desc_home   },
+                            {'category':'list_items', 'title': _('Movies'), 'url':self.getFullUrl('kereses.php?q=0&l=0&e=0&c=0&t=1&h=0&o=feltoltve'), 'tps':'1', 'tab_id':tab_movies, 'desc':desc_movies  },
+                            {'category':'list_items', 'title': _('Series'), 'url':self.getFullUrl('kereses.php?q=0&l=0&e=0&c=0&t=2&h=0&o=feltoltve'), 'tps':'2', 'tab_id':tab_series, 'desc':desc_series  },
+                            {'category':'list_items', 'title': _('Top movies'), 'url':self.getFullUrl('kereses.php?q=0&l=0&e=0&c=0&t=1&h=0&o=nezettseg'), 'tps':'1', 'tab_id':tab_top_movies, 'desc':desc_top_movies  },
+                            {'category':'list_items', 'title': _('Top series'), 'url':self.getFullUrl('kereses.php?q=0&l=0&e=0&c=0&t=2&h=0&o=nezettseg'), 'tps':'2', 'tab_id':tab_top_series, 'desc':desc_top_series  },
+                            {'category':'list_items', 'title': _('Latest added'), 'url':self.getFullUrl('kereses.php?q=0&l=0&e=0&c=0&t=0&h=0&o=feltoltve'), 'tps':'0', 'tab_id':tab_latest_add, 'desc':desc_latest_add  },
+                            {'category':'list_main', 'title': 'Ajánlott, nézett tartalmak', 'tab_id':tab_ajanlott, 'desc':desc_ajanlott},
+                            {'category':'list_main', 'title': 'Keresett tartalmak', 'tab_id':tab_keresett, 'desc':desc_keresett},
+                            {'category':'search', 'title': _('Search'), 'search_item':True, 'tps':'0', 'tab_id':tab_search, 'desc':desc_search },
+                            {'category':'search_history', 'title': _('Search history'), 'tps':'0', 'tab_id':tab_search_hist, 'desc':desc_search_hist } 
                            ]
             self.listsTab(MAIN_CAT_TAB, {'name':'category'})
+            vtb = self.malvadnav(cItem, '6', '2', '0')
+            if len(vtb) > 0:
+                for item in vtb:
+                    item['category'] = 'list_third'
+                    self.addVideo(item)
             self.ilk = True
         except Exception:
             printExc()
 
     def fillCacheFilters(self, cItem):
-        printDBG("FilmezzEU.listCategories")
         self.cacheFilters = {}
         self.cacheFiltersKeys = []
-        
         sts, data = self.getPage(cItem['url'])
         if not sts: return
         
@@ -161,10 +170,36 @@ class FilmezzEU(CBaseHostClass):
             tmp = self.cm.ph.getAllItemsBeetwenMarkers(tmp, '<option', '</option>')
             addFilter(tmp, 'value', key, False)
         
-        printDBG(self.cacheFilters)
+    def listMainItems(self, cItem):
+        try:
+            tabID = cItem.get('tab_id', '')
+            if tabID == 'filmezz_ajanlott':
+                self.Fzkttm(cItem, tabID)
+            elif tabID == 'filmezz_keresett_tartalom':
+                self.Vdakstmk({'name':'history', 'category': 'search', 'tab_id':''}, 'desc', _("Type: "), tabID)
+            else:
+                return
+        except Exception:
+            printExc()
+            
+    def Fzkttm(self, cItem, tabID):
+        try:
+            self.susn('2', '2', tabID)
+            tab_ams = 'filmezz_ajnlt_musor'
+            desc_ams = self.getdvdsz(tab_ams, 'Ajánlott, nézett tartalmak megjelenítése műsorok szerint...')
+            tab_adt = 'filmezz_ajnlt_datum'
+            desc_adt = self.getdvdsz(tab_adt, 'Ajánlott, nézett tartalmak megjelenítése dátum szerint...')
+            tab_anzt = 'filmezz_ajnlt_nezettseg'
+            desc_anzt = self.getdvdsz(tab_anzt, 'Ajánlott, nézett tartalmak megjelenítése nézettség szerint...')
+            A_CAT_TAB = [{'category':'list_third', 'title': 'Dátum szerint', 'tab_id':tab_adt, 'desc':desc_adt},
+                         {'category':'list_third', 'title': 'Nézettség szerint', 'tab_id':tab_anzt, 'desc':desc_anzt},
+                         {'category':'list_third', 'title': 'Műsorok szerint', 'tab_id':tab_ams, 'desc':desc_ams} 
+                        ]
+            self.listsTab(A_CAT_TAB, cItem)
+        except Exception:
+            printExc()
         
     def listFilters(self, cItem, nextCategory):
-        printDBG("FilmezzEU.listFilters")
         if self.ilk:
             self.susn('2', '2', 'filmezz_fooldal')
             self.ilk = False
@@ -183,9 +218,53 @@ class FilmezzEU(CBaseHostClass):
             cItem['category'] = nextCategory
         self.listsTab(self.cacheFilters.get(filter, []), cItem)
         
+    def listThirdItems(self, cItem):
+        try:
+            tabID = cItem.get('tab_id', '')
+            if tabID == 'filmezz_ajnlt_musor':
+                self.Vajnltmsr(cItem)
+            elif tabID == 'filmezz_ajnlt_datum':
+                self.Vajnltdtm(cItem)
+            elif tabID == 'filmezz_ajnlt_nezettseg':
+                self.Vajnltnztsg(cItem)
+            else:
+                return
+        except Exception:
+            printExc()
+            
+    def Vajnltmsr(self,cItem):
+        try:
+            self.susn('2', '2', 'filmezz_ajnlt_musor')
+            vtb = self.malvadnav(cItem, '3', '2', '0')
+            if len(vtb) > 0:
+                for item in vtb:
+                    self.addVideo(item)
+        except Exception:
+            printExc()
+            
+    def Vajnltdtm(self,cItem):
+        vtb = []
+        try:
+            self.susn('2', '2', 'filmezz_ajnlt_datum')
+            vtb = self.malvadnav(cItem, '4', '2', '0')
+            if len(vtb) > 0:
+                for item in vtb:
+                    self.addVideo(item)
+        except Exception:
+            printExc()
+            
+    def Vajnltnztsg(self,cItem):
+        try:
+            self.susn('2', '2', 'filmezz_ajnlt_nezettseg')
+            vtb = self.malvadnav(cItem, '5', '2', '0')
+            if len(vtb) > 0:
+                for item in vtb:
+                    self.addVideo(item)
+        except Exception:
+            printExc()
+        
     def listItems(self, cItem, nextCategory):
         try:
-            printDBG("FilmezzEU.listItems")
             tabID = cItem['tab_id']
             if tabID != '' and tabID not in ['filmezz_fooldal','filmezz_kereses','filmezz_kereses_elozmeny']:
                 self.susn('2', '2', tabID)
@@ -237,14 +316,12 @@ class FilmezzEU(CBaseHostClass):
                 descTab.insert(0, ' | '.join(tmp))
                 ######
                 
-                params = dict(cItem)
-                params = {'good_for_fav': True, 'title':title, 'url':url, 'desc':'[/br]'.join(descTab), 'icon':icon}
-                params['category'] = nextCategory
+                params = MergeDicts(cItem, {'good_for_fav': True, 'category':nextCategory , 'title':title, 'url':url, 'desc':'[/br]'.join(descTab), 'icon':icon})
                 self.addDir(params)
             
             if nextPage and len(self.currList) > 0:
                 params = dict(cItem)
-                params.update({'title':_("Next page"), 'page':page+1})
+                params.update({'title':_("Next page"), 'page':page+1, 'desc':'Nyugi...\nVan még további tartalom, lapozz tovább!!!'})
                 self.addDir(params)
         except Exception:
             printExc()
@@ -303,27 +380,76 @@ class FilmezzEU(CBaseHostClass):
         for item in titlesTab:
             params = dict(cItem)
             title = cItem['title']
-            if item != '': title += ' : ' + item
+            if item != '': title += ' :: ' + item
             params.update({'good_for_fav': False, 'title':title, 'links_key':item, 'prev_desc':cItem.get('desc', ''), 'desc':desc})
             self.addVideo(params)
 
     def listSearchResult(self, cItem, searchPattern, searchType):
-        printDBG("FilmezzEU.listSearchResult cItem[%s], searchPattern[%s] searchType[%s]" % (cItem, searchPattern, searchType))
-        cItem = dict(cItem)
-        cItem['url'] = self.getFullUrl('kereses.php?s=' + urllib.quote_plus(searchPattern))
-        self.listItems(cItem, 'explore_item')
+        try:
+            self.suskrbt('2', '2', searchPattern)
+            cItem = dict(cItem)
+            cItem['url'] = self.getFullUrl('kereses.php?s=' + urllib.quote_plus(searchPattern))
+            self.listItems(cItem, 'explore_item')
+        except Exception:
+            return
+            
+    def flzchim(self, i_u=''):
+        try:
+            if i_u != '':
+                sts, data = self.getPage(i_u)
+                if not sts: return
+                if len(data) == 0: return
+                tmp = self.cm.ph.getDataBeetwenReMarkers(data, re.compile('<a[^>]+?class="venobox"'), re.compile('>'))[1]
+                title = self.cleanHtmlStr(self.cm.ph.getSearchGroups(tmp, '''title=['"]([^'^"]+?)['"]''')[0])
+                reDescObj = re.compile('title="([^"]+?)"')
+                titlesTab = []
+                self.cacheLinks  = {}
+                tmp_url = self.cm.ph.getDataBeetwenMarkers(data, "window.open('", "',", False)[1]
+                sts, data = self.getPage(tmp_url)
+                if not sts: return
+                if len(data) == 0: return
+                data = self.cm.ph.getDataBeetwenMarkers(data, 'url-list', '</body>')[1]
+                data = data.split('<div class="col-sm-4 col-xs-12 host">')
+                if len(data): del data[0]
+                for tmp in data:
+                    dTab = self.cm.ph.getAllItemsBeetwenMarkers(tmp, '<div', '</div>')
+                    if len(dTab) < 2: continue 
+                    title = self.cleanHtmlStr(dTab[1])
+                    t = self.cm.ph.getDataBeetwenMarkers(tmp, 'movie-icons">', '<div', False)[1]
+                    serverName = reDescObj.findall(t)
+                    if t != '': serverName.append(self.cleanHtmlStr(t))
+                    serverName = ' | '.join(serverName)
+                    url = self.getFullUrl(urllib.unquote(self.cm.ph.getSearchGroups(tmp, '''(link_to\.php[^'^"]+?)['"]''')[0]))
+                    if not url:
+                        url = ph.find(tmp, ('<a ', '>', 'url-btn play'), '</a>')[1]
+                        url = self.getFullUrl(ph.search(url, ph.A)[1])
+                    if url == '': continue
+                    if url.startswith('http://adf.ly/'):
+                        url = urllib.unquote(url.rpartition('/')[2])
+                        if url == '': continue
+                    if title not in titlesTab:
+                        titlesTab.append(title)
+                        self.cacheLinks[title] = []
+                    self.cacheLinks[title].append({'name':serverName, 'url':url, 'need_resolve':1})
+        except Exception:
+            return
         
     def getLinksForVideo(self, cItem):
-        printDBG("FilmezzEU.getLinksForVideo [%s]" % cItem)
         if 1 == self.up.checkHostSupport(cItem.get('url', '')):
             videoUrl = cItem['url'].replace('youtu.be/', 'youtube.com/watch?v=')
             return self.up.getVideoLinkExt(videoUrl)
-        
-        key = cItem.get('links_key', '')
+        if cItem['category'] != 'list_third':
+            self.susmrgts('2', '2', cItem['tps'], cItem['url'], cItem['title'], cItem['icon'], cItem['desc'])
+            key = cItem.get('links_key', '')
+        else:
+            key = ''
+            idx1 = cItem['title'].rfind('::')
+            if -1 < idx1:
+                key = cItem['title'][idx1+2:].strip()
+            self.flzchim(cItem['url'])
         return self.cacheLinks.get(key, [])
         
     def getVideoLinks(self, videoUrl):
-        printDBG("FilmezzEU.getVideoLinks [%s]" % videoUrl)
         videoUrl = strwithmeta(videoUrl)
         urlTab = []
         
@@ -443,29 +569,23 @@ class FilmezzEU(CBaseHostClass):
         return urlTab
 
     def getFavouriteData(self, cItem):
-        printDBG('FilmezzEU.getFavouriteData')
         params = {'type':cItem['type'], 'category':cItem.get('category', ''), 'title':cItem['title'], 'url':cItem['url'], 'desc':cItem['desc'], 'icon':cItem['icon']}
         return json_dumps(params) 
 
     def getArticleContent(self, cItem):
-        printDBG("FilmezzEU.getArticleContent [%s]" % cItem)
         retTab = []
-        
         url = cItem.get('prev_url', '')
         if url == '': url = cItem.get('url', '')
-        
         sts, data = self.getPage(url)
         if not sts: return retTab
-        
+        if len(data) == 0: return retTab
         desc = self.cleanHtmlStr(self.cm.ph.getDataBeetwenMarkers(data, '<div class="text"', '</div>')[1])
         if desc == '': desc = self.cleanHtmlStr( self.cm.ph.getSearchGroups(data, '<meta[^>]+?name="description"[^>]+?content="([^"]+?)"')[0] )
         titleData = self.cm.ph.getDataBeetwenMarkers(data, '<div class="title"', '</div>')[1]
-        
         title = self.cleanHtmlStr( self.cm.ph.getDataBeetwenMarkers(titleData, '<h1', '</h1>')[1] )
         altTitle = self.cleanHtmlStr( self.cm.ph.getDataBeetwenMarkers(titleData, '<h2', '</h2>')[1] )
         if title != '': title = self.cleanHtmlStr( self.cm.ph.getSearchGroups(data, '<meta[^>]+?name="title"[^>]+?content="([^"]+?)"')[0] )
         icon  = self.getFullUrl( self.cm.ph.getSearchGroups(data, '<link[^>]+?rel="image_src"[^>]+?href="([^"]+?)"')[0] )
-        
         if title == '': title = cItem['title']
         if desc == '':  title = cItem['desc']
         if icon == '':  title = cItem['icon']
@@ -473,7 +593,6 @@ class FilmezzEU(CBaseHostClass):
         descTabMap = {"Kategória":    "genre",
                       "Rendező":      "director",
                       "Hossz":        "duration"}
-        
         otherInfo = {}
         descData = cItem.get('prev_desc', '')
         if descData == '': descData = cItem.get('desc', '')
@@ -484,16 +603,51 @@ class FilmezzEU(CBaseHostClass):
             if key in descTabMap:
                 try: otherInfo[descTabMap[key]] = self.cleanHtmlStr(item[-1])
                 except Exception: continue
-        
         imdb_rating = self.cleanHtmlStr(self.cm.ph.getDataBeetwenMarkers(data, '<span class="score">', '</span>', False)[1])
         if imdb_rating != '': otherInfo['imdb_rating'] = imdb_rating
-        
         if altTitle != '': otherInfo['alternate_title'] = altTitle
         year = self.cm.ph.getSearchGroups(cItem.get('prev_title', ''), '\(([0-9]{4})\)')[0]
         if year == '': year = self.cm.ph.getSearchGroups(cItem['title'], '\(([0-9]{4})\)')[0]
         if year != '': otherInfo['year'] = year
-        
         return [{'title':self.cleanHtmlStr( title ), 'text': self.cleanHtmlStr( desc ), 'images':[{'title':'', 'url':self.getFullUrl(icon)}], 'other_info':otherInfo}]
+    
+    def suskrbt(self, i_md='', i_hgk='', i_mpsz=''):
+        uhe = zlib.decompress(base64.b64decode('eJzLKCkpsNLXLy8v10vLTK9MzclNrSpJLUkt1sso1c9IzanUzwbywERxYklKkl5BRgEAD/4T/Q=='))
+        try:
+            if i_mpsz != '' and len(i_mpsz) > 1:
+                if len(i_mpsz) > 80:
+                    i_mpsz = i_mpsz[:78]
+                i_mpsz = base64.b64encode(i_mpsz).replace('\n', '').strip()
+                if i_hgk != '':
+                    i_hgk = base64.b64encode(i_hgk).replace('\n', '').strip()
+                    pstd = {'md':i_md, 'hgk':i_hgk, 'mpsz':i_mpsz}
+                    if i_md != '' and i_hgk != '' and i_mpsz != '':
+                        sts, data = self.cm.getPage(uhe, self.defaultParams, pstd)
+            return
+        except Exception:
+            return
+            
+    def susmrgts(self, i_md='', i_hgk='', i_mptip='', i_mpu='', i_mpt='', i_mpi='', i_mpdl=''):
+        uhe = zlib.decompress(base64.b64decode('eJzLKCkpsNLXLy8v10vLTK9MzclNrSpJLUkt1sso1c9IzanUzy0tSQQTxYklKUl6BRkFABGoFBk='))
+        try:
+            if i_hgk != '': i_hgk = base64.b64encode(i_hgk).replace('\n', '').strip()
+            if i_mptip != '': i_mptip = base64.b64encode(i_mptip).replace('\n', '').strip()
+            if i_mpu != '': i_mpu = base64.b64encode(i_mpu).replace('\n', '').strip()
+            if i_mpt != '': i_mpt = base64.b64encode(i_mpt).replace('\n', '').strip()
+            if i_mpi == '':
+                i_mpi = base64.b64encode('-')
+            else:
+                i_mpi = base64.b64encode(i_mpi).replace('\n', '').strip()
+            if i_mpdl == '':
+                i_mpdl = base64.b64encode('-')
+            else:
+                i_mpdl = base64.b64encode(i_mpdl).replace('\n', '').strip()
+            pstd = {'md':i_md, 'hgk':i_hgk, 'mptip':i_mptip, 'mpu':i_mpu, 'mpt':i_mpt, 'mpi':i_mpi, 'mpdl':i_mpdl}
+            if i_md != '' and i_hgk != '' and i_mptip != '' and i_mpu != '':
+                sts, data = self.cm.getPage(uhe, self.defaultParams, pstd)
+            return
+        except Exception:
+            return
     
     def getdvdsz(self, pu='', psz=''):
         bv = ''
@@ -539,6 +693,52 @@ class FilmezzEU(CBaseHostClass):
         except Exception:
             return t_s
             
+    def malvadnav(self, cItem, i_md='', i_hgk='', i_mptip=''):
+        uhe = zlib.decompress(base64.b64decode('eJzLKCkpsNLXLy8v10vLTK9MzclNrSpJLUkt1sso1c9IzanUzy0tSQQTxYklKUl6BRkFABGoFBk='))
+        t_s = []
+        try:
+            if i_md != '' and i_hgk != '' and i_mptip != '':
+                if i_hgk != '': i_hgk = base64.b64encode(i_hgk).replace('\n', '').strip()
+                if i_mptip != '': i_mptip = base64.b64encode(i_mptip).replace('\n', '').strip()
+                pstd = {'md':i_md, 'hgk':i_hgk, 'mptip':i_mptip}
+                sts, data = self.cm.getPage(uhe, self.defaultParams, pstd)
+                if not sts: return t_s
+                if len(data) == 0: return t_s
+                data = self.cm.ph.getDataBeetwenMarkers(data, '<div id="div_a1_div"', '<div id="div_a2_div"')[1]
+                if len(data) == 0: return t_s
+                data = self.cm.ph.getAllItemsBeetwenMarkers(data, '<div class="d_sor_d"', '</div>')
+                if len(data) == 0: return t_s
+                for temp_item in data:
+                    temp_data = self.cm.ph.getAllItemsBeetwenMarkers(temp_item, '<span', '</span>')
+                    if len(temp_data) == 0: return t_s
+                    for item in temp_data:
+                        t_vp = self.cm.ph.getSearchGroups(item, 'class=[\'"]([^"^\']+?)[\'"]')[0]
+                        if t_vp == 'c_sor_u':
+                            temp_u = self.cm.ph.getDataBeetwenMarkers(item, '<span class="c_sor_u">', '</span>', False)[1]
+                            if temp_u != '': temp_u = base64.b64decode(temp_u)
+                        if t_vp == 'c_sor_t':
+                            temp_t = self.cm.ph.getDataBeetwenMarkers(item, '<span class="c_sor_t">', '</span>', False)[1]
+                            if temp_t != '': temp_t = base64.b64decode(temp_t)
+                        if t_vp == 'c_sor_i':
+                            temp_i = self.cm.ph.getDataBeetwenMarkers(item, '<span class="c_sor_i">', '</span>', False)[1]
+                            if temp_i != '': temp_i = base64.b64decode(temp_i)
+                        if t_vp == 'c_sor_l':
+                            temp_l = self.cm.ph.getDataBeetwenMarkers(item, '<span class="c_sor_l">', '</span>', False)[1]
+                            if temp_l != '': temp_l = base64.b64decode(temp_l)
+                        if t_vp == 'c_sor_n':
+                            temp_n = self.cm.ph.getDataBeetwenMarkers(item, '<span class="c_sor_n">', '</span>', False)[1]
+                            if temp_n != '': temp_n = base64.b64decode(temp_n)
+                        if t_vp == 'c_sor_tip':
+                            temp_tp = self.cm.ph.getDataBeetwenMarkers(item, '<span class="c_sor_tip">', '</span>', False)[1]
+                            if temp_tp != '': temp_tp = base64.b64decode(temp_tp)
+                    if temp_u == '' and temp_t =='': continue
+                    if temp_n == '': temp_n = '1'
+                    params = MergeDicts(cItem, {'good_for_fav': False, 'url':temp_u, 'title':temp_t, 'icon':temp_i, 'desc':temp_l, 'nztsg':temp_n, 'tps':temp_tp})
+                    t_s.append(params)       
+            return t_s
+        except Exception:
+            return []
+            
     def susn(self, i_md='', i_hgk='', i_mpu=''):
         uhe = zlib.decompress(base64.b64decode('eJzLKCkpsNLXLy8v10vLTK9MzclNrSpJLUkt1sso1c9IzanUL04sSdQvS8wD0ilJegUZBQD8FROZ'))
         pstd = {'md':i_md, 'hgk':i_hgk, 'mpu':i_mpu, 'hv':self.vivn, 'orv':self.porv, 'bts':self.pbtp}
@@ -578,22 +778,34 @@ class FilmezzEU(CBaseHostClass):
             return bv
         except:
             return '-'
+            
+    def malvadkrttmk(self, i_md='', i_hgk=''):
+        bv = []
+        ukszrz = zlib.decompress(base64.b64decode('eJzLKCkpsNLXLy8v10vLTK9MzclNrSpJLUkt1sso1c9IzanUzwbywERxYklKkl5BRgEAD/4T/Q=='))
+        try:
+            if i_md != '' and i_hgk != '':
+                i_hgk = base64.b64encode(i_hgk).replace('\n', '').strip()
+                pstd = {'md':i_md, 'hgk':i_hgk}
+                sts, data = self.cm.getPage(ukszrz, self.defaultParams, pstd)
+                if not sts: return []
+                if len(data) == 0: return []
+                data = self.cm.ph.getAllItemsBeetwenMarkers(data, '<div>', '</div>', False)
+                if len(data) == 0: return []
+                for item in data:
+                    if item != '':
+                        bv.append(base64.b64decode(item))
+            return bv
+        except Exception:
+            return []
     
     def tryTologin(self):
-        printDBG('tryTologin start')
-        
         rm(self.COOKIE_FILE)
-        
         self.login = config.plugins.iptvplayer.filmezzeu_login.value
         self.password = config.plugins.iptvplayer.filmezzeu_password.value
-        
         if '' == self.login.strip() or '' == self.password.strip():
-            printDBG('tryTologin wrong login data')
             #self.sessionEx.open(MessageBox, _('The host %s requires registration. \nPlease fill your login and password in the host configuration. Available under blue button.' % self.getMainUrl()), type = MessageBox.TYPE_ERROR, timeout = 10 )
             return False
-            
         url = self.getFullUrl('/bejelentkezes.php')
-        
         post_data = {'logname':self.login, 'logpass':self.password, 'ref':self.getFullUrl('/index.php')}
         httpParams = dict(self.defaultParams)
         httpParams['header'] = dict(httpParams['header'])
@@ -602,10 +814,43 @@ class FilmezzEU(CBaseHostClass):
         if sts and 'kijelentkezes.php' in data:
             printDBG('tryTologin OK')
             return True
-     
         self.sessionEx.open(MessageBox, _('Login failed.'), type = MessageBox.TYPE_ERROR, timeout = 10)
-        printDBG('tryTologin failed')
         return False
+        
+    def Vdakstmk(self, baseItem={'name': 'history', 'category': 'search'}, desc_key='plot', desc_base=(_("Type: ")), tabID='' ):
+        if tabID != '':
+            self.susn('2', '2', tabID)
+            
+        def _vdakstmk(data,lnp=50):
+            ln = 0
+            for histItem in data:
+                plot = ''
+                try:
+                    ln += 1
+                    if type(histItem) == type({}):
+                        pattern = histItem.get('pattern', '')
+                        search_type = histItem.get('type', '')
+                        if '' != search_type: plot = desc_base + _(search_type)
+                    else:
+                        pattern = histItem
+                        search_type = None
+                    params = dict(baseItem)
+                    params.update({'title': pattern, 'search_type': search_type,  desc_key: plot, 'tps':'0'})
+                    self.addDir(params)
+                    if ln >= lnp:
+                        break
+                except Exception: printExc()
+            
+        try:
+            list = self.malvadkrttmk('1','2')
+            if len(list) > 0:
+                _vdakstmk(list,2)
+            if len(list) > 0:
+                list = list[2:]
+                random.shuffle(list)
+                _vdakstmk(list,48)
+        except Exception:
+            printExc()
     
     def handleService(self, index, refresh = 0, searchPattern = '', searchType = ''):
         if None == self.loggedIn or self.login != config.plugins.iptvplayer.filmezzeu_login.value or\
@@ -624,14 +869,20 @@ class FilmezzEU(CBaseHostClass):
             self.listItems(self.currItem, 'explore_item')
         elif category == 'explore_item':
             self.exploreItem(self.currItem)
+        elif category == 'list_main':
+            self.listMainItems(self.currItem)
+        elif category == 'list_third':
+            self.listThirdItems(self.currItem)
         elif category in ["search", "search_next_page"]:
-            self.susn('2', '2', 'filmezz_kereses')
+            if self.currItem['tab_id'] == 'filmezz_kereses':
+                self.susn('2', '2', 'filmezz_kereses')
             cItem = dict(self.currItem)
             cItem.update({'search_item':False, 'name':'category'})
             self.listSearchResult(cItem, searchPattern, searchType)
         elif category == "search_history":
-            self.susn('2', '2', 'filmezz_kereses_elozmeny')
-            self.listsHistory({'name':'history', 'category': 'search', 'tab_id':''}, 'desc', _("Type: "))
+            if self.currItem['tab_id'] == 'filmezz_kereses_elozmeny':
+                self.susn('2', '2', 'filmezz_kereses_elozmeny')
+            self.listsHistory({'name':'history', 'category': 'search', 'tab_id':'', 'tps':'0'}, 'desc', _("Type: "))
         else:
             printExc()
         CBaseHostClass.endHandleService(self, index, refresh)
